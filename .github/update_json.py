@@ -51,7 +51,7 @@ def plist_version():
     with open("LiveContainer/Info.plist", 'rb') as infile:
         info_plist = plistlib.load(infile)
     full_version = info_plist["CFBundleVersion"]
-    match = re.search(r"(\d+\.\d+\.\d+)", full_version)
+    match = re.search(r"(\d+\.\d+(?:\.\d+)?)", full_version)
     if not match:
         raise ValueError(f"CFBundleVersion {full_version!r} does not contain X.Y.Z")
     return full_version, match.group(1)

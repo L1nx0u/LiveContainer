@@ -283,31 +283,6 @@ struct LCSettingsView: View {
                     }
                 }
                 
-                Section {
-                    HStack {
-                        Image("GitHub")
-                        Button("LiveContainer/LiveContainer") {
-                            openGitHub()
-                        }
-                    }
-                    HStack {
-                        Image("Twitter")
-                        Button("khanhduytran0") {
-                            openTwitter()
-                        }
-                    }
-                    HStack {
-                        Image("GitHub")
-                        Button("Huge_Black") {
-                            openGitHub2()
-                        }
-                    }
-                } header: {
-                    Text("lc.settings.about".loc)
-                } footer: {
-                    Text("lc.settings.warning".loc)
-                }
-                
                 VStack{
                     Text(LCUtils.getVersionInfo())
                         .foregroundStyle(.gray)
