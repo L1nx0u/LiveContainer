@@ -286,7 +286,9 @@ class AppInfoProvider {
     
     override init() {
         super.init()
-        keyWindow!.rootViewController!.view.subviews.first!.addSubview(self.windowHostingView)
+        if let rootView = keyWindow?.rootViewController?.view.subviews.first {
+            rootView.addSubview(self.windowHostingView)
+        }
         setupDockView()
         NotificationCenter.default.addObserver(
             self,

@@ -99,7 +99,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         } else {
             return apps.filter { app in
                 app.appInfo.displayName().localizedCaseInsensitiveContains(searchContext.debouncedQuery) ||
-                app.appInfo.bundleIdentifier()!.localizedCaseInsensitiveContains(searchContext.debouncedQuery)
+                (app.appInfo.bundleIdentifier() ?? "").localizedCaseInsensitiveContains(searchContext.debouncedQuery)
             }
         }
     }
@@ -111,7 +111,7 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
         } else {
             return apps.filter { app in
                 app.appInfo.displayName().localizedCaseInsensitiveContains(searchContext.debouncedQuery) ||
-                app.appInfo.bundleIdentifier()!.localizedCaseInsensitiveContains(searchContext.debouncedQuery)
+                (app.appInfo.bundleIdentifier() ?? "").localizedCaseInsensitiveContains(searchContext.debouncedQuery)
             }
         }
     }
@@ -627,16 +627,20 @@ struct LCAppListView : View, LCAppBannerDelegate, LCAppModelDelegate {
             throw "lc.appList.infoPlistCannotReadError".loc
         }
 
-        var appRelativePath = "\(newAppInfo.bundleIdentifier()!.sanitizeNonACSII()).app"
+        guard let newBundleId = newAppInfo.bundleIdentifier() else {
+            throw "lc.appList.infoPlistCannotReadError".loc
+        }
+
+        var appRelativePath = "\(newBundleId.sanitizeNonACSII()).app"
         var outputFolder = LCPath.bundlePath.appendingPathComponent(appRelativePath)
         var appToReplace : LCAppModel? = nil
         // Folder exist! show alert for user to choose which bundle to replace
         var sameBundleIdApp = sharedModel.apps.filter { app in
-            return app.appInfo.bundleIdentifier()! == newAppInfo.bundleIdentifier()
+            return app.appInfo.bundleIdentifier() == newBundleId
         }
         if sameBundleIdApp.count == 0 {
             sameBundleIdApp = sharedModel.hiddenApps.filter { app in
-                return app.appInfo.bundleIdentifier()! == newAppInfo.bundleIdentifier()
+                return app.appInfo.bundleIdentifier() == newBundleId
             }
             
             // we found a hidden app, we need to authenticate before proceeding

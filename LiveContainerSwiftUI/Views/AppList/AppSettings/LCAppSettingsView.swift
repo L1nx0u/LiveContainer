@@ -580,12 +580,15 @@ struct LCAppSettingsView: View {
                 }
                 
 //                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    if container!.bookmarkResolved {
-                        container!.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier()!, keychainGroupId: freeKeyChainGroup)
+                    guard let container else {
+                        return
+                    }
+                    if container.bookmarkResolved {
+                        container.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier() ?? "", keychainGroupId: freeKeyChainGroup)
                     }
 //                }
             }
-            model.uiContainers.append(container!)
+            model.uiContainers.append(container)
             appInfo.containers = model.uiContainers;
             if model.uiSelectedContainer == nil {
                 model.uiSelectedContainer = container;
