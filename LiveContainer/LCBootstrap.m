@@ -270,7 +270,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     }
 
     NSFileManager *fm = NSFileManager.defaultManager;
-    NSString *docPath = [NSString stringWithFormat:@"%s/Documents", getenv("LC_HOME_PATH")];
+    NSString *docPath = [NSString stringWithFormat:@"%s/Documents", getenv("LC_HOME_PATH") ?: ""];
     
     NSURL *appGroupFolder = nil;
     
@@ -436,10 +436,11 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     
     NSString *newTmpPath = [newHomePath stringByAppendingPathComponent:@"tmp"];
     remove(newTmpPath.UTF8String);
-    symlink(getenv("TMPDIR"), newTmpPath.UTF8String);
+    const char *tmpdir = getenv("TMPDIR");
+    if (tmpdir) symlink(tmpdir, newTmpPath.UTF8String);
     
     if([guestAppInfo[@"doSymlinkInbox"] boolValue]) {
-        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
+        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", tmpdir ?: "", [appBundle bundleIdentifier]];
         NSString* inboxPath = [newHomePath stringByAppendingPathComponent:@"Inbox"];
         
         if (![fm fileExistsAtPath:inboxPath]) {
@@ -459,7 +460,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
 
         symlink(inboxPath.UTF8String, inboxSymlinkPath.UTF8String);
     } else {
-        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", getenv("TMPDIR"), [appBundle bundleIdentifier]];
+        NSString* inboxSymlinkPath = [NSString stringWithFormat:@"%s/%@-Inbox", tmpdir ?: "", [appBundle bundleIdentifier]];
         NSDictionary* targetAttribute = [fm attributesOfItemAtPath:inboxSymlinkPath error:&error];
         if(targetAttribute) {
             if(targetAttribute[NSFileType] == NSFileTypeSymbolicLink) {
@@ -670,7 +671,8 @@ int LiveContainerMain(int argc, char *argv[]) {
     lcAppUrlScheme = NSBundle.mainBundle.infoDictionary[@"CFBundleURLTypes"][0][@"CFBundleURLSchemes"][0];
     lcAppGroupPath = [[NSFileManager.defaultManager containerURLForSecurityApplicationGroupIdentifier:[NSClassFromString(@"LCSharedUtils") appGroupID]] path];
     isLiveProcess = [lcAppUrlScheme isEqualToString:@"liveprocess"];
-    setenv("LC_HOME_PATH", getenv("HOME"), 0);
+    const char *homeC = getenv("HOME");
+    if (homeC) setenv("LC_HOME_PATH", homeC, 0);
 
     NSString *selectedApp = [lcUserDefaults stringForKey:@"selected"];
     NSString *selectedContainer = [lcUserDefaults stringForKey:@"selectedContainer"];
@@ -714,7 +716,7 @@ int LiveContainerMain(int argc, char *argv[]) {
         if([lastLaunchType isEqualToString:@"Shared"]) {
             preferencesTo = [LCSharedUtils.appGroupPath.path stringByAppendingPathComponent:[NSString stringWithFormat:@"LiveContainer/Data/Application/%@/Library/Preferences", lastLaunchDataUUID]];
         } else {
-            NSString *docPath = [NSString stringWithFormat:@"%s/Documents", getenv("LC_HOME_PATH")];
+            NSString *docPath = [NSString stringWithFormat:@"%s/Documents", getenv("LC_HOME_PATH") ?: ""];
             preferencesTo = [docPath stringByAppendingPathComponent:[NSString stringWithFormat:@"Data/Application/%@/Library/Preferences", lastLaunchDataUUID]];
         }
         // recover preferences
@@ -726,7 +728,8 @@ int LiveContainerMain(int argc, char *argv[]) {
         }
     }
     // in case some weird apps remove the tmp folder
-    [NSFileManager.defaultManager createDirectoryAtPath:@(getenv("TMPDIR")) withIntermediateDirectories:YES attributes:nil error:nil];
+    const char *recoverTmp = getenv("TMPDIR");
+    if (recoverTmp) [NSFileManager.defaultManager createDirectoryAtPath:@(recoverTmp) withIntermediateDirectories:YES attributes:nil error:nil];
     
     if([selectedApp isEqualToString:@"ui"]) {
         selectedApp = nil;
