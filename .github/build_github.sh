@@ -75,7 +75,7 @@ plist_add "Add :PreferenceSpecifiers:3:DefaultValue bool false" ./Payload/LiveCo
 # download SideStore (floating nightly: log fingerprint for reproducibility)
 cd tmp
 rm -f SideStore.ipa
-curl -fSL --retry 3 -o SideStore.ipa https://github.com/LiveContainer/SideStore/releases/download/nightly/SideStore.ipa
+curl -fSL --retry 3 -o SideStore.ipa https://github.com/L1nx0u/SideStore/releases/download/nightly/SideStore.ipa
 if command -v shasum >/dev/null 2>&1; then
   shasum -a 256 SideStore.ipa
 fi
