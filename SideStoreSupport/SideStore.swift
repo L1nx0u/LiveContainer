@@ -9,6 +9,24 @@ import Foundation
 import AppIntents
 import UserNotifications
 
+/// Central source for the bundled SideStore intent type names.
+///
+/// Swift mangled names embed module/type length prefixes ("9SideStore" =
+/// 9-char module "SideStore"), so hardcoded literals silently break if
+/// SideStore ever renames the module or the intent types. Building them
+/// here keeps every use site in sync; the matching rewrite of the
+/// Shortcuts metadata blob lives in .github/build_github.sh.
+@available(iOS 17.0, *)
+enum BuiltInSideStoreIntent {
+    static let moduleName = "SideStore"
+    static let refreshAllApps = "RefreshAllAppsIntent"
+    static let refreshAllAppsWidget = "RefreshAllAppsWidgetIntent"
+
+    static func mangled(typeName: String) -> String {
+        "\(moduleName.count)\(moduleName)\(typeName.count)\(typeName)V"
+    }
+}
+
 @available(iOS 17.0, *)
 func performIntentRefresh(identifier: String, mangledTypeName: String, intentProgress: Progress) async throws {
     intentProgress.totalUnitCount = 100
@@ -30,7 +48,7 @@ public struct RefreshAllAppsWidgetIntent: AppIntent, ProgressReportingIntent
     
     public func perform() async throws -> some IntentResult
     {
-        try await performIntentRefresh(identifier: "RefreshAllAppsWidgetIntent", mangledTypeName: "9SideStore26RefreshAllAppsWidgetIntentV", intentProgress: progress)
+        try await performIntentRefresh(identifier: "RefreshAllAppsWidgetIntent", mangledTypeName: BuiltInSideStoreIntent.mangled(typeName: BuiltInSideStoreIntent.refreshAllAppsWidget), intentProgress: progress)
         return .result()
     }
 }
@@ -60,7 +78,7 @@ public struct RefreshAllAppsIntent: AppIntent, CustomIntentMigratedAppIntent, Pr
     
     public func perform() async throws -> some IntentResult & ProvidesDialog
     {
-        try await performIntentRefresh(identifier: "RefreshAllIntent", mangledTypeName: "9SideStore20RefreshAllAppsIntentV", intentProgress: progress)
+        try await performIntentRefresh(identifier: "RefreshAllIntent", mangledTypeName: BuiltInSideStoreIntent.mangled(typeName: BuiltInSideStoreIntent.refreshAllApps), intentProgress: progress)
         return .result(dialog: "All apps have been refreshed.")
     }
     

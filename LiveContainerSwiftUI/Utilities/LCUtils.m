@@ -452,9 +452,11 @@
 }
 
 + (NSString *)getVersionInfo {
+    // LCVersionInfo is injected by an Xcode run-script phase; don't print "(null)" if skipped.
+    NSString *buildInfo = NSBundle.mainBundle.infoDictionary[@"LCVersionInfo"] ?: @"?";
     return [NSString stringWithFormat:@"Version %@-%@",
             NSBundle.mainBundle.infoDictionary[@"CFBundleShortVersionString"],
-            NSBundle.mainBundle.infoDictionary[@"LCVersionInfo"]];
+            buildInfo];
 }
 
 + (NSData*)bookmarkForURL:(NSURL*) url {

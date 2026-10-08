@@ -137,9 +137,12 @@ static void SSInstallVersionWindow(UIWindowScene *windowScene)
     }
     
     
+    // LCVersionInfo is injected by an Xcode run-script phase; fall back
+    // to "?" instead of printing "(null)" if a build skipped it.
+    NSString* LCVersionInfo = NSUserDefaults.lcMainBundle.infoDictionary[@"LCVersionInfo"] ?: @"?";
     NSString* LCVersion = [NSString stringWithFormat:@"%@-%@",
                          NSUserDefaults.lcMainBundle.infoDictionary[@"CFBundleShortVersionString"],
-                         NSUserDefaults.lcMainBundle.infoDictionary[@"LCVersionInfo"]];
+                         LCVersionInfo];
     
     NSString* SSVersion = [NSBundle.mainBundle objectForInfoDictionaryKey:@"CFBundleShortVersionString"];
     
@@ -199,16 +202,26 @@ void installSideStoreHooks(void) {
     swizzleClassMethod(NSBundle.class, @selector(activeBundle), @selector(hook_activeBundle));
     swizzleClassMethod(NSBundle.class, @selector(baseAltStoreAppGroupID), @selector(hook_baseAltStoreAppGroupID));
     
-    // replace altStoreSourceURL
+    // replace altStoreSourceURL (guard: a SideStore update that renames
+    // Source/altStoreSourceURL degrades to stock behavior instead of crashing)
     Method altStoreSourceURLMethod = class_getClassMethod(PrivClass(Source), @selector(altStoreSourceURL));
-    method_setImplementation(altStoreSourceURLMethod, (IMP)SideStoreSource_hook_altStoreSourceURL);
+    if (altStoreSourceURLMethod) {
+        method_setImplementation(altStoreSourceURLMethod, (IMP)SideStoreSource_hook_altStoreSourceURL);
+    } else {
+        NSLog(@"[SideStore] Source/altStoreSourceURL not found; AltStore source override skipped");
+    }
     
     if (!NSUserDefaults.isLiveProcess) {
-        // add escape button
+        // add escape button (guard: degrade gracefully if SideStore renames
+        // MyAppsViewController instead of crashing the built-in SideStore)
         Method viewDidLoadMethod = class_getInstanceMethod(PrivClass(MyAppsViewController), @selector(viewDidLoad));
-        SideStoreMyAppsViewController_orig_viewDidload = (void (*)(UICollectionViewController *, SEL))method_getImplementation(viewDidLoadMethod);
-        method_setImplementation(viewDidLoadMethod, (IMP)SideStoreMyAppsViewController_hook_viewDidload);
-        class_addMethod(PrivClass(MyAppsViewController), @selector(escapeButtonTapped:), (IMP)SideStoreMyAppsViewController_hook_escapeButtonTapped, "v@:@");
+        if (viewDidLoadMethod) {
+            SideStoreMyAppsViewController_orig_viewDidload = (void (*)(UICollectionViewController *, SEL))method_getImplementation(viewDidLoadMethod);
+            method_setImplementation(viewDidLoadMethod, (IMP)SideStoreMyAppsViewController_hook_viewDidload);
+            class_addMethod(PrivClass(MyAppsViewController), @selector(escapeButtonTapped:), (IMP)SideStoreMyAppsViewController_hook_escapeButtonTapped, "v@:@");
+        } else {
+            NSLog(@"[SideStore] MyAppsViewController/viewDidLoad not found; escape button skipped");
+        }
         
         // add version number
         SSVersionWindows = [NSMutableDictionary dictionary];

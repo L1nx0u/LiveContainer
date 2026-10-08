@@ -103,6 +103,15 @@ cp -r ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/Metadata.app
 portable_sed 's/9SideStore20RefreshAllAppsIntentV/16SideStoreSupport20RefreshAllAppsIntentV/g' ./Payload/LiveContainer.app/Metadata.appintents/extract.actionsdata
 portable_sed 's/9SideStore26RefreshAllAppsWidgetIntentV/16SideStoreSupport26RefreshAllAppsWidgetIntentV/g' ./Payload/LiveContainer.app/Metadata.appintents/extract.actionsdata
 
+# the Shortcuts metadata must reference our module now; fail loudly if
+# SideStore renamed the intents instead of shipping a broken widget
+for intent in 16SideStoreSupport20RefreshAllAppsIntentV 16SideStoreSupport26RefreshAllAppsWidgetIntentV; do
+  if ! grep -q "$intent" ./Payload/LiveContainer.app/Metadata.appintents/extract.actionsdata; then
+    echo "error: $intent missing from extract.actionsdata; SideStore intent names changed" >&2
+    exit 1
+  fi
+done
+
 # AltWidgetExtension (fail loudly if SideStore renames it)
 if [ ! -d ./Payload/LiveContainer.app/Frameworks/SideStoreApp.framework/PlugIns/AltWidgetExtension.appex ]; then
   echo "error: AltWidgetExtension.appex missing; SideStore layout changed. PlugIns contains:" >&2
