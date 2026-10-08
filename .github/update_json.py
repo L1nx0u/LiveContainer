@@ -5,7 +5,25 @@ import requests
 import os
 from datetime import datetime
 
+REQUEST_TIMEOUT = 30
+
+
+def repo_slug():
+    # Fork-safe: CI provides GITHUB_REPOSITORY (owner/repo); fall back to upstream.
+    return os.environ.get("GITHUB_REPOSITORY", "LiveContainer/LiveContainer")
+
+
+def auth_headers():
+    headers = {
+        "Accept": "application/vnd.github+json",
+    }
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if token:
+        headers["Authorization"] = f"Bearer {token}"
+    return headers
+
 def prepare_description(text):
+    text = text or ""
     text = re.sub('<[^<]+?>', '', text) # Remove HTML tags
     text = re.sub(r'#{1,6}\s?', '', text) # Remove markdown header tags
     text = re.sub(r'\*{2}', '', text) # Remove all occurrences of two consecutive asterisks
@@ -15,12 +33,9 @@ def prepare_description(text):
     return text
 
 def fetch_latest_release(repo_url, is_nightly: bool):
-    api_url = f"https://api.github.com/repos/{repo_url}/releases"
-    headers = {
-        "Accept": "application/vnd.github+json",
-    }
+    api_url = f"https://api.github.com/repos/{repo_url}/releases?per_page=100"
     try:
-        response = requests.get(api_url, headers=headers)
+        response = requests.get(api_url, headers=auth_headers(), timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         releases = response.json()
         latest_release = next((
@@ -32,14 +47,14 @@ def fetch_latest_release(repo_url, is_nightly: bool):
         print(f"Error fetching releases: {e}")
         raise
 
-def get_file_size(url):
-    try:
-        response = requests.head(url)
-        response.raise_for_status()
-        return int(response.headers.get('Content-Length', 0))
-    except requests.RequestException as e:
-        print(f"Error getting file size: {e}")
-        return 194586
+def plist_version():
+    with open("LiveContainer/Info.plist", 'rb') as infile:
+        info_plist = plistlib.load(infile)
+    full_version = info_plist["CFBundleVersion"]
+    match = re.search(r"(\d+\.\d+\.\d+)", full_version)
+    if not match:
+        raise ValueError(f"CFBundleVersion {full_version!r} does not contain X.Y.Z")
+    return full_version, match.group(1)
 
 def update_json_file_release(repo_url, json_file, latest_release):
     if isinstance(latest_release, list) and latest_release:
@@ -50,7 +65,7 @@ def update_json_file_release(repo_url, json_file, latest_release):
 
     try:
         apps_json_url = f"https://github.com/{repo_url}/releases/download/1.0/apps.json"
-        response = requests.get(apps_json_url)
+        response = requests.get(apps_json_url, headers=auth_headers(), timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
     except json.JSONDecodeError as e:
@@ -60,16 +75,13 @@ def update_json_file_release(repo_url, json_file, latest_release):
 
     app = data["apps"][0]
 
-    with open("LiveContainer/Info.plist", 'rb') as infile:
-        info_plist = plistlib.load(infile)
-    full_version = info_plist["CFBundleVersion"]
+    full_version, version = plist_version()
 
     tag = latest_release["tag_name"]
-    version = re.search(r"(\d+\.\d+\.\d+)", full_version).group(1)
     version_date = latest_release["published_at"]
     date_obj = datetime.strptime(version_date, "%Y-%m-%dT%H:%M:%SZ")
 
-    description = latest_release["body"]
+    description = latest_release.get("body") or ""
     description = prepare_description(description)
 
     assets = latest_release.get("assets", [])
@@ -117,11 +129,11 @@ def update_json_file_release(repo_url, json_file, latest_release):
         "caption": f"Update of LiveContainer just got released!",
         "date": latest_release["published_at"],
         "identifier": news_identifier,
-        "imageURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/release.png",
+        "imageURL": f"https://raw.githubusercontent.com/{repo_url}/main/screenshots/release.png",
         "notify": True,
         "tintColor": "#0784FC",
         "title": f"{full_version} - LiveContainer  {date_string}",
-        "url": f"https://github.com/LiveContainer/LiveContainer/releases/tag/{tag}"
+        "url": f"https://github.com/{repo_url}/releases/tag/{tag}"
     }
 
     news_entry_exists = any(item["identifier"] == news_identifier for item in data["news"])
@@ -153,20 +165,18 @@ def update_json_file_nightly(json_file, nightly_release):
 
     app = data["apps"][0]
 
-    with open("LiveContainer/Info.plist", 'rb') as infile:
-        info_plist = plistlib.load(infile)
-    full_version = info_plist["CFBundleVersion"]
+    full_version, version = plist_version()
     tag = nightly_release["tag_name"]
-    version = re.search(r"(\d+\.\d+\.\d+)", full_version).group(1)
     version_date = nightly_release["published_at"]
     date_obj = datetime.strptime(version_date, "%Y-%m-%dT%H:%M:%SZ")
 
+    repo_url = repo_slug()
     nightly_link = os.environ.get("NIGHTLY_LINK", "")
     commit_sha = os.environ.get("commit_sha", "")[:7]
     commit_msg = os.environ.get("commit_msg", "").strip()
 
     description = f"""\
-Nightly build from [{commit_sha}](https://github.com/LiveContainer/LiveContainer/commit/{commit_sha}):\
+Nightly build from [{commit_sha}](https://github.com/{repo_url}/commit/{commit_sha}):\
  {commit_msg}
 
 This is a nightly release [created automatically with GitHub Actions workflow]({nightly_link}).
@@ -228,7 +238,7 @@ def update_json_file_release_ss_lc(repo_url, json_file, latest_release, is_night
 
     try:
         apps_json_url = f"https://github.com/{repo_url}/releases/download/1.0/apps_ss_lc.json"
-        response = requests.get(apps_json_url)
+        response = requests.get(apps_json_url, headers=auth_headers(), timeout=REQUEST_TIMEOUT)
         response.raise_for_status()
         data = response.json()
     except json.JSONDecodeError as e:
@@ -238,12 +248,9 @@ def update_json_file_release_ss_lc(repo_url, json_file, latest_release, is_night
 
     app = data["apps"][0]
 
-    with open("LiveContainer/Info.plist", 'rb') as infile:
-        info_plist = plistlib.load(infile)
-    full_version = info_plist["CFBundleVersion"]
+    full_version, version = plist_version()
 
     tag = latest_release["tag_name"]
-    version = re.search(r"(\d+\.\d+\.\d+)", full_version).group(1)
     version_date = latest_release["published_at"]
     date_obj = datetime.strptime(version_date, "%Y-%m-%dT%H:%M:%SZ")
 
@@ -251,9 +258,10 @@ def update_json_file_release_ss_lc(repo_url, json_file, latest_release, is_night
     commit_msg = os.environ.get("commit_msg", "").strip()
 
     description = f"""\
-Nightly build from [{commit_sha}](https://github.com/LiveContainer/LiveContainer/commit/{commit_sha}):\
+Nightly build from [{commit_sha}](https://github.com/{repo_url}/commit/{commit_sha}):\
  {commit_msg}
     """
+    description = prepare_description(description)
     assets = latest_release.get("assets", [])
     download_url = None
     size = None
@@ -306,11 +314,11 @@ Nightly build from [{commit_sha}](https://github.com/LiveContainer/LiveContainer
             "caption": f"Update of LiveContainer just got released!",
             "date": latest_release["published_at"],
             "identifier": news_identifier,
-            "imageURL": "https://raw.githubusercontent.com/LiveContainer/LiveContainer/main/screenshots/release.png",
+            "imageURL": f"https://raw.githubusercontent.com/{repo_url}/main/screenshots/release.png",
             "notify": True,
             "tintColor": "#0784FC",
             "title": f"{full_version} - LiveContainer  {date_string}",
-            "url": f"https://github.com/LiveContainer/LiveContainer/releases/tag/{tag}"
+            "url": f"https://github.com/{repo_url}/releases/tag/{tag}"
         }
 
         news_entry_exists = any(item["identifier"] == news_identifier for item in data["news"])
@@ -332,7 +340,7 @@ Nightly build from [{commit_sha}](https://github.com/LiveContainer/LiveContainer
 
 
 def main():
-    repo_url = "LiveContainer/LiveContainer"
+    repo_url = repo_slug()
     is_nightly = "NIGHTLY_LINK" in os.environ
 
     try:
