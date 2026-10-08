@@ -580,13 +580,13 @@ struct LCAppSettingsView: View {
                 }
                 
 //                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    guard let container else {
-                        return
-                    }
-                    if container.bookmarkResolved {
-                        container.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier() ?? "", keychainGroupId: freeKeyChainGroup)
+                    if container!.bookmarkResolved {
+                        container!.makeLCContainerInfoPlist(appIdentifier: appInfo.bundleIdentifier() ?? "", keychainGroupId: freeKeyChainGroup)
                     }
 //                }
+            }
+            guard let container else {
+                return
             }
             model.uiContainers.append(container)
             appInfo.containers = model.uiContainers;
