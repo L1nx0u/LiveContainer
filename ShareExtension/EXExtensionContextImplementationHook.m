@@ -26,7 +26,9 @@ static void hook__willPerformHostCallback(NSExtensionContext* self, SEL _cmd, id
 __attribute__((constructor))
 static void ExtensionHookInit(void) {
     Class class = objc_lookUpClass("EXExtensionContextImplementation");
+    if (!class) return;
     Method method = class_getInstanceMethod(class, NSSelectorFromString(@"_willPerformHostCallback:"));
+    if (!method) return;
     orig__willPerformHostCallback = (void *)method_getImplementation(method);
     method_setImplementation(method, (IMP)hook__willPerformHostCallback);
 }

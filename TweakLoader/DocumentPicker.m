@@ -105,6 +105,10 @@ static void NSFMGuestHooksInit() {
 - (void)hook_setHostIdentifier:(NSString *)ignored {
     CFErrorRef error = NULL;
     void* taskSelf = SecTaskCreateFromSelf(NULL);
+    if (!taskSelf) {
+        [self hook_setHostIdentifier:ignored];
+        return;
+    }
     CFTypeRef value = SecTaskCopyValueForEntitlement(taskSelf, CFSTR("application-identifier"), &error);
     CFRelease(taskSelf);
     if (value) {

@@ -11,7 +11,7 @@
 
 bool lsApplicationWorkspaceCanOpenURL(NSURL* url) {
     LSApplicationWorkspace* workspace = [PrivClass(LSApplicationWorkspace) defaultWorkspace];
-    NSError* error;
+    NSError* error = nil;
     BOOL success = [workspace isApplicationAvailableToOpenURL:url error:&error];
     return success;
 }

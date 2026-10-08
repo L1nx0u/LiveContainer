@@ -48,7 +48,7 @@ struct LaunchAppExtension: AppIntent {
     func firstFreeInstalledLC(preferredScheme: String?) -> String? {
         var schemeToLaunch: String? = nil
         
-        var schemes = LCSharedUtils.lcUrlSchemes()!
+        var schemes = LCSharedUtils.lcUrlSchemes() ?? []
         if let preferredScheme {
             schemes.removeAll { $0 == preferredScheme }
             schemes.insert(preferredScheme, at: 0)
@@ -65,7 +65,10 @@ struct LaunchAppExtension: AppIntent {
         var ext : NSExtension? = LaunchAppExtension.ext
         if ext == nil {
             do {
-                ext = try NSExtension(identifier: ((Bundle.main.bundleIdentifier! as NSString).deletingPathExtension as NSString).appendingPathExtension("ShareExtension") )
+                guard let bid = Bundle.main.bundleIdentifier else {
+                    throw LaunchAppExtensionError("Missing bundleIdentifier")
+                }
+                ext = try NSExtension(identifier: ((bid as NSString).deletingPathExtension as NSString).appendingPathExtension("ShareExtension") )
                 LaunchAppExtension.ext = ext
             } catch {
                 NSLog("Failed to start extension \(error)")

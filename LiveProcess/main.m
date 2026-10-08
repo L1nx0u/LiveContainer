@@ -46,17 +46,20 @@ int LiveProcessMain(int argc, char *argv[]) {
     NSString *customPayloadDylib = appInfo[@"customPayloadDylib"];
     if(customPayloadDylib) {
         void *handle = dlopen(customPayloadDylib.fileSystemRepresentation, RTLD_LAZY);
-        NSCAssert(appInfo, @"Failed to load custom payload dylib at path: %@", customPayloadDylib);
-        
+        NSCAssert(handle, @"Failed to load custom payload dylib at path: %@", customPayloadDylib);
+        if (!handle) return 1;
+
         NSString *customPayloadEntry = appInfo[@"customPayloadEntry"];
         NSCAssert(customPayloadEntry, @"Missing customPayloadEntry");
         int (*payloadEntry)(int, char **, char **, char **) = dlsym(handle, customPayloadEntry.UTF8String);
+        if (!payloadEntry) return 1;
         return payloadEntry(argc, argv, _envp, _apple);
     }
     
     NSLog(@"Retrieved app info: %@", appInfo);
     // Set LiveContainer's home path
-    setenv("LP_HOME_PATH", getenv("HOME"), 1);
+    const char *homeC = getenv("HOME");
+    if (homeC) setenv("LP_HOME_PATH", homeC, 1);
     const char *overrideHomePath = [appInfo[@"lcHomePath"] fileSystemRepresentation];
     if(overrideHomePath) setenv("LC_HOME_PATH", overrideHomePath, 1);
     // Pass selected app info to user defaults
@@ -124,7 +127,8 @@ static void* hook_dlopen(void* dyldApiInstancePtr, const char* path, int mode) {
 int NSExtensionMain(int argc, char *argv[], char *envp[], char *apple[]) {
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wundeclared-selector"
-    method_setImplementation(class_getInstanceMethod(NSClassFromString(@"NSXPCDecoder"), @selector(_validateAllowedClass:forKey:allowingInvocations:)), (IMP)hook_do_nothing);
+    Method nsxpcMethod = class_getInstanceMethod(NSClassFromString(@"NSXPCDecoder"), @selector(_validateAllowedClass:forKey:allowingInvocations:));
+    if (nsxpcMethod) method_setImplementation(nsxpcMethod, (IMP)hook_do_nothing);
 #pragma clang diagnostic pop
     // hook dlopen UIKit
     performHookDyldApi("dlopen", 2, (void**)&orig_dlopen, hook_dlopen);
@@ -132,5 +136,6 @@ int NSExtensionMain(int argc, char *argv[], char *envp[], char *apple[]) {
     _envp = envp;
     _apple = apple;
     int (*orig_NSExtensionMain)(int argc, char * argv[]) = dlsym(RTLD_NEXT, "NSExtensionMain");
+    if (!orig_NSExtensionMain) return 1;
     return orig_NSExtensionMain(argc, argv);
 }

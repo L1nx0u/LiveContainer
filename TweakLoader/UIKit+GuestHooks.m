@@ -50,7 +50,9 @@ NSString* findDefaultContainerWithBundleId(NSString* bundleId) {
     NSString* bundleInfoPath = [NSString stringWithFormat:@"%@/Applications/%@/LCAppInfo.plist", appGroupFolder, bundleId];
     NSDictionary* infoDict = [NSDictionary dictionaryWithContentsOfFile:bundleInfoPath];
     if(!infoDict) {
-        NSString* lcDocFolder = [[NSString stringWithUTF8String:getenv("LC_HOME_PATH")] stringByAppendingPathComponent:@"Documents"];
+        const char *lcHomeC = getenv("LC_HOME_PATH");
+        if (!lcHomeC) return nil;
+        NSString* lcDocFolder = [[NSString stringWithUTF8String:lcHomeC] stringByAppendingPathComponent:@"Documents"];
         
         bundleInfoPath = [NSString stringWithFormat:@"%@/Applications/%@/LCAppInfo.plist", lcDocFolder, bundleId];
         infoDict = [NSDictionary dictionaryWithContentsOfFile:bundleInfoPath];
@@ -461,7 +463,8 @@ static LCControlAppURLHandling LCHandleControlAppURL(NSURL *url, NSString** modi
             return LCControlAppURLHandlingStop;
         }
         
-        NSString* containerId = [NSString stringWithUTF8String:getenv("HOME")].lastPathComponent;
+        const char *homeC = getenv("HOME");
+        NSString* containerId = homeC ? [NSString stringWithUTF8String:homeC].lastPathComponent : nil;
         if(!containerFolderName) {
             containerFolderName = findDefaultContainerWithBundleId(bundleName);
         }
@@ -546,7 +549,7 @@ static LCControlAppURLHandling LCHandleControlAppURL(NSURL *url, NSString** modi
         do {
             if([urlStr hasPrefix:[NSString stringWithFormat: @"%@://open-url", NSUserDefaults.lcAppUrlScheme]]) {
                 NSURLComponents* lcUrl = [NSURLComponents componentsWithString:urlStr];
-                NSString* realUrlEncoded = lcUrl.queryItems[0].value;
+                NSString* realUrlEncoded = lcUrl.queryItems.firstObject.value;
                 if(!realUrlEncoded) break;
                 // Convert the base64 encoded url into String
                 NSData *decodedData = [[NSData alloc] initWithBase64EncodedString:realUrlEncoded options:0];
