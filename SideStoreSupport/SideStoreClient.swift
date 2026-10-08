@@ -71,8 +71,7 @@ struct SideStoreIntentCaller {
                         identifier: identifier,
                         mangledTypeName: mangledTypeName
                     ) { result, error in
-                        print("performAction result=\(String(describing: result)), " +
-                              "error=\(String(describing: error))")
+                        NSLog("performAction result=%@, error=%@", String(describing: result), String(describing: error))
                         if let error {
                             c.resume(throwing: error)
                         } else {

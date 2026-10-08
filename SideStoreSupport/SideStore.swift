@@ -118,9 +118,14 @@ class RefreshHandler: NSObject, RefreshServer {
 
         // launch SideStore if it's not running
         if (sideStorePid <= 0 || getpgid(sideStorePid) <= 0) && launchContinuation == nil {
-            let lcHome = String(cString:getenv("LC_HOME_PATH"))
+            guard let lcHomeC = getenv("LC_HOME_PATH") else {
+                throw NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "LC_HOME_PATH is not set; cannot locate the built-in SideStore container."])
+            }
+            let lcHome = String(cString: lcHomeC)
             let sideStoreHomeURL = URL(fileURLWithPath: lcHome).appendingPathComponent("Documents/SideStore")
-            let bookmarkData = bookmarkForURL(sideStoreHomeURL)!
+            guard let bookmarkData = bookmarkForURL(sideStoreHomeURL) else {
+                throw NSError(domain: "SideStore", code: 1, userInfo: [NSLocalizedDescriptionKey: "Unable to access the built-in SideStore container."])
+            }
 
             // start LiveProcess
             let extensionItem = NSExtensionItem()
