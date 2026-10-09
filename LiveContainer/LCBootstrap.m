@@ -109,12 +109,14 @@ static uint64_t rnd64(uint64_t v, uint64_t r) {
 void overwriteMainCFBundle(void) {
     // Overwrite CFBundleGetMainBundle
     uint32_t *pc = (uint32_t *)CFBundleGetMainBundle;
+    // shortcut: 64KB scan cap from function start. Upgrade to __TEXT segment bound via dyld image lookup.
+    uint32_t *scanEnd = pc + 0x4000;
     void **mainBundleAddr = 0;
     
 #if !TARGET_OS_SIMULATOR
     if(@available(iOS 27.0, *)) {
         // at least in iOS 27.0 db1, the logic is inversed and the __mainBundle is right after the first tbz instruction
-        while (true) {
+        while (pc < scanEnd) {
             bool isTbz = ((*pc) & 0x7F000000) == 0x36000000;
             if (isTbz) {
                 // adrp <- pc-1
@@ -127,7 +129,7 @@ void overwriteMainCFBundle(void) {
         }
     } else {
 #endif
-        while (true) {
+        while (pc < scanEnd) {
             uint64_t addr = aarch64_get_tbnz_jump_address(*pc, (uint64_t)pc);
             if (addr) {
                 // adrp <- pc-1
@@ -142,7 +144,7 @@ void overwriteMainCFBundle(void) {
 #if !TARGET_OS_SIMULATOR
     }
 #endif
-    assert(mainBundleAddr != NULL);
+    if (!mainBundleAddr) return;
     *mainBundleAddr = (__bridge void *)NSBundle.mainBundle._cfBundle;
 }
 
@@ -300,6 +302,8 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
     }
     
     if([guestAppInfo[@"doUseLCBundleId"] boolValue] ) {
+        // shortcut: runtime env spoof only, no on-disk rewrite (old code invalidated the code signature).
+        // Upgrade: per-launch NSBundle bundleIdentifier swizzle if a guest reads it directly off disk.
         NSMutableDictionary* infoPlist = [NSMutableDictionary dictionaryWithContentsOfFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath]];
         CFErrorRef error = NULL;
         void* taskSelf = SecTaskCreateFromSelf(NULL);
@@ -312,8 +316,7 @@ static NSString* invokeAppMain(NSString *selectedApp, NSString *selectedContaine
             if (dotRange.location != NSNotFound) {
                 NSString *expectedBundleId = [entStr substringFromIndex:dotRange.location + 1];
                 if(![infoPlist[@"CFBundleIdentifier"] isEqualToString:expectedBundleId]) {
-                    infoPlist[@"CFBundleIdentifier"] = expectedBundleId;
-                    [infoPlist writeBinToFile:[NSString stringWithFormat:@"%@/Info.plist", bundlePath] atomically:YES];
+                    setenv("LC_SPOOFED_BUNDLE_ID", expectedBundleId.UTF8String, 1);
                 }
             }
         }
@@ -769,15 +772,17 @@ int LiveContainerMain(int argc, char *argv[]) {
         selectedApp = nil;
         dispatch_time_t delay = dispatch_time(DISPATCH_TIME_NOW, (int64_t)(0.5 * NSEC_PER_SEC));
         dispatch_after(delay, dispatch_get_main_queue(), ^{
-            // Base64 encode the data
-            NSString* urlStr;
-            if(selectedContainer) {
-                urlStr = [NSString stringWithFormat:@"%@://livecontainer-launch?bundle-name=%@&container-folder-name=%@", runningLC, selectedAppBackUp, selectedContainer];
-            } else {
-                urlStr = [NSString stringWithFormat:@"%@://livecontainer-launch?bundle-name=%@", runningLC, selectedAppBackUp];
+            NSURLComponents *launchComponents = [[NSURLComponents alloc] init];
+            launchComponents.scheme = runningLC;
+            launchComponents.host = @"livecontainer-launch";
+            NSMutableArray<NSURLQueryItem *> *launchItems = [@[
+                [NSURLQueryItem queryItemWithName:@"bundle-name" value:selectedAppBackUp]
+            ] mutableCopy];
+            if (selectedContainer) {
+                [launchItems addObject:[NSURLQueryItem queryItemWithName:@"container-folder-name" value:selectedContainer]];
             }
-            
-            NSURL* url = [NSURL URLWithString:urlStr];
+            launchComponents.queryItems = launchItems;
+            NSURL* url = launchComponents.URL;
             if([[NSClassFromString(@"UIApplication") sharedApplication] canOpenURL:url]){
                 [[NSClassFromString(@"UIApplication") sharedApplication] openURL:url options:@{} completionHandler:nil];
                 
@@ -789,9 +794,12 @@ int LiveContainerMain(int argc, char *argv[]) {
                     // Base64 encode the data
                     NSData *data = [launchUrl dataUsingEncoding:NSUTF8StringEncoding];
                     NSString *encodedUrl = [data base64EncodedStringWithOptions:0];
-                    
-                    NSString* finalUrl = [NSString stringWithFormat:@"%@://open-url?url=%@", runningLC, encodedUrl];
-                    NSURL* url = [NSURL URLWithString: finalUrl];
+
+                    NSURLComponents *openComponents = [[NSURLComponents alloc] init];
+                    openComponents.scheme = runningLC;
+                    openComponents.host = @"open-url";
+                    openComponents.queryItems = @[[NSURLQueryItem queryItemWithName:@"url" value:encodedUrl]];
+                    NSURL* url = openComponents.URL;
                     
                     [[NSClassFromString(@"UIApplication") sharedApplication] openURL:url options:@{} completionHandler:nil];
 

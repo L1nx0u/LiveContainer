@@ -187,15 +187,19 @@ NSString* FBSOpenApplicationOptionKeyPayloadURL = @"__PayloadURL";
         }
     }
     if(launchBundleId) {
+        // Validate the bundle exists before touching defaults or relaunching
+        bool isSharedApp = false;
+        NSBundle *appBundle = [self findBundleWithBundleId:launchBundleId isSharedAppOut:&isSharedApp];
+        if (!appBundle) return NO;
         if (openUrl) {
+            NSURL *openCandidate = [NSURL URLWithString:openUrl];
+            if (!openCandidate.scheme) return NO;
             [lcUserDefaults setObject:openUrl forKey:@"launchAppUrlScheme"];
         }
-        
+
         // Attempt to restart LiveContainer with the selected guest app
         [lcUserDefaults setObject:launchBundleId forKey:@"selected"];
         [lcUserDefaults setObject:containerFolderName forKey:@"selectedContainer"];
-        bool isSharedApp = false;
-        NSBundle *appBundle = [self findBundleWithBundleId:launchBundleId isSharedAppOut:&isSharedApp];
         NSDictionary *appInfo = [NSDictionary dictionaryWithContentsOfFile:
             [appBundle.bundlePath stringByAppendingPathComponent:@"LCAppInfo.plist"]];
         NSUInteger classicMode = [appInfo[@"classicMode"] boolValue]

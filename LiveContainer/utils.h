@@ -28,11 +28,17 @@ uint64_t aarch64_emulate_adrp_add(uint32_t instruction, uint32_t addInstruction,
 uint64_t aarch64_emulate_adrp_ldr(uint32_t instruction, uint32_t ldrInstruction, uint64_t pc);
 
 static inline void swizzle(Class class, SEL originalAction, SEL swizzledAction) {
-    method_exchangeImplementations(class_getInstanceMethod(class, originalAction), class_getInstanceMethod(class, swizzledAction));
+    Method orig = class_getInstanceMethod(class, originalAction);
+    Method alt = class_getInstanceMethod(class, swizzledAction);
+    if (!orig || !alt) return;
+    method_exchangeImplementations(orig, alt);
 }
 
 static inline void swizzleClassMethod(Class class, SEL originalAction, SEL swizzledAction) {
-    method_exchangeImplementations(class_getClassMethod(class, originalAction), class_getClassMethod(class, swizzledAction));
+    Method orig = class_getClassMethod(class, originalAction);
+    Method alt = class_getClassMethod(class, swizzledAction);
+    if (!orig || !alt) return;
+    method_exchangeImplementations(orig, alt);
 }
 
 @interface NSUserDefaults(LiveContainer)

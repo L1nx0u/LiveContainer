@@ -43,9 +43,14 @@ int LiveProcessMain(int argc, char *argv[]) {
     NSCAssert(appInfo, @"Failed to retrieve app info");
     
     // Check if we received a request to execute a custom payload
+    // shortcut: debug-only gate, TestJITLess harness path. Upgrade to SecStaticCode check if ever enabled in release.
     NSString *customPayloadDylib = appInfo[@"customPayloadDylib"];
     if(customPayloadDylib) {
+#if DEBUG
         void *handle = dlopen(customPayloadDylib.fileSystemRepresentation, RTLD_LAZY);
+#else
+        void *handle = NULL;
+#endif
         NSCAssert(handle, @"Failed to load custom payload dylib at path: %@", customPayloadDylib);
         if (!handle) return 1;
 
@@ -72,12 +77,19 @@ int LiveProcessMain(int argc, char *argv[]) {
     bool access = false;
     NSArray* bookmarks = appInfo[@"bookmarks"];
     NSMutableArray<NSURL *>* bookmarkedUrls = [NSMutableArray array];
+    NSMutableArray<NSURL *>* accessedUrls = [NSMutableArray array];
     for(int i = 0; i < bookmarks.count; i++) {
         bool isStale = false;
         NSError* error = nil;
-        bookmarkedUrls[i] = [NSURL URLByResolvingBookmarkData:bookmarks[i] options:0 relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
-        access = [bookmarkedUrls[i] startAccessingSecurityScopedResource];
+        NSURL *resolved = [NSURL URLByResolvingBookmarkData:bookmarks[i] options:0 relativeToURL:nil bookmarkDataIsStale:&isStale error:&error];
+        if (!resolved) continue;
+        [bookmarkedUrls addObject:resolved];
+        if ([resolved startAccessingSecurityScopedResource]) {
+            [accessedUrls addObject:resolved];
+            access = true;
+        }
     }
+    // callers must stopAccessingSecurityScopedResource on accessedUrls on exit
     
     if ([appInfo[@"selected"] isEqualToString:@"builtinSideStore"]) {
         if(access && bookmarkedUrls.count > 0) {

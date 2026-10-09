@@ -21,13 +21,22 @@ int LiveContainerMainC(int argc, char *argv[], char *envp[]) {
         goto loadlc;
     }
     char line[PATH_MAX];
+    // Only allow tweaks from the app's own Tweaks dir or app-group container
+    char tweaksDir[PATH_MAX], groupDir[PATH_MAX];
+    snprintf(tweaksDir, sizeof(tweaksDir), "%s/Tweaks/", home);
+    snprintf(groupDir, sizeof(groupDir), "%s/Library/Group Containers/", home);
     while (fgets(line, sizeof(line), file)) {
         // Remove trailing newline if present
         size_t len = strlen(line);
         if (len > 0 && line[len - 1] == '\n') {
             line[len - 1] = '\0';
         }
-        dlopen(line, RTLD_LAZY|RTLD_GLOBAL);
+        char resolved[PATH_MAX];
+        if (!realpath(line, resolved)) continue;
+        if (strncmp(resolved, tweaksDir, strlen(tweaksDir)) != 0 &&
+            strncmp(resolved, groupDir, strlen(groupDir)) != 0) continue;
+        if (strstr(resolved, "..") != NULL) continue;
+        dlopen(resolved, RTLD_LAZY|RTLD_GLOBAL);
     }
     
     fclose(file);

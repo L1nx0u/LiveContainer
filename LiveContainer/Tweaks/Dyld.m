@@ -134,7 +134,10 @@ void hideLiveContainerImageCallback(const struct mach_header* header, intptr_t v
         if(ret != KERN_SUCCESS) {
             os_thread_self_restrict_tpro_to_rw();
         }
-        strcpy((char *)info.dli_fname, fakePath);
+        // shortcut: assumes dyld string buffer has PATH_MAX writable bytes. Upgrade to vm_region length check.
+        if (strlen(fakePath) < PATH_MAX) {
+            strlcpy((char *)info.dli_fname, fakePath, PATH_MAX);
+        }
         if(ret != KERN_SUCCESS) {
             os_thread_self_restrict_tpro_to_ro();
         }
