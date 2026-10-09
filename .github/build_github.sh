@@ -26,7 +26,12 @@ portable_sed() {
 if [ ! -x ./dylibify ]; then
   if ! curl -fSL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify; then
     rm -f dylibify
-    if curl -fSL --retry 3 -o dylibify https://github.com/jakeajames/dylibify/raw/master/dylibify-arm64; then
+    # prebuilt mirrors are stale (SIGKILL on new macOS) — compile 455-line dylibify from source
+    if git clone --depth 1 https://github.com/jakeajames/dylibify.git /tmp/dylibify-src 2>/dev/null && \
+       clang -O2 -o dylibify /tmp/dylibify-src/main.m -framework Foundation 2>/dev/null; then
+      chmod +x dylibify
+      unset SKIP_SIDESTORE_VARIANT
+    elif curl -fSL --retry 3 -o dylibify https://github.com/jakeajames/dylibify/raw/master/dylibify-arm64; then
       chmod +x dylibify
       unset SKIP_SIDESTORE_VARIANT
     else
