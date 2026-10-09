@@ -25,7 +25,7 @@ portable_sed() {
 # LIEF-based exe->dylib converter, replaces dead dylibify binary.
 if [ ! -x ./dylibify ]; then
   if ! python3 -c "import lief" 2>/dev/null; then
-    python3 -m pip install --user lief || pip3 install --user lief || /usr/bin/pip3 install --user lief
+    python3 -m pip install --user --break-system-packages lief || pip3 install --user --break-system-packages lief
   fi
   python3 -c "import lief" || { echo "error: lief install failed" >&2; exit 1; }
   printf '#!/bin/sh\nexec python3 .github/exe2dylib.py "$1" "$2" SideStore\n' > ./dylibify
