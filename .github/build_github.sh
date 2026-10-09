@@ -22,26 +22,13 @@ portable_sed() {
 }
 
 # --- fetch dylibify (only needed for the +SideStore variant) ---
-# shortcut: third-party mirror (jakeajames) as fallback. Upgrade to vendored binary if mirrors rot again.
+# LIEF-based exe->dylib converter, replaces dead dylibify binary.
 if [ ! -x ./dylibify ]; then
-  if ! curl -fSL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify; then
-    rm -f dylibify
-    # prebuilt mirrors are stale (SIGKILL on new macOS) — compile 455-line dylibify from source
-    if git clone --depth 1 https://github.com/jakeajames/dylibify.git /tmp/dylibify-src 2>/dev/null && \
-       clang -O2 -o dylibify /tmp/dylibify-src/main.m -framework Foundation 2>/dev/null; then
-      chmod +x dylibify
-      unset SKIP_SIDESTORE_VARIANT
-    elif curl -fSL --retry 3 -o dylibify https://github.com/jakeajames/dylibify/raw/master/dylibify-arm64; then
-      chmod +x dylibify
-      unset SKIP_SIDESTORE_VARIANT
-    else
-      rm -f dylibify
-      echo "warning: dylibify unavailable, shipping plain IPA only" >&2
-      SKIP_SIDESTORE_VARIANT=1
-    fi
-  else
-    chmod +x dylibify
+  if ! python3 -c "import lief" 2>/dev/null; then
+    python3 -m pip install lief 2>/dev/null || pip3 install lief 2>/dev/null || true
   fi
+  printf '#!/bin/sh\nexec python3 .github/exe2dylib.py "$1" "$2" SideStore\n' > ./dylibify
+  chmod +x ./dylibify
 fi
 
 if ! command -v ldid >/dev/null 2>&1; then
@@ -61,11 +48,6 @@ mkdir -p tmp
 mv Payload/LiveContainer.app/Frameworks/SideStoreSupport.framework ./tmp
 
 zip -r "$scheme.ipa" "Payload" -x "._*" -x ".DS_Store" -x "__MACOSX"
-
-if [ "${SKIP_SIDESTORE_VARIANT:-}" = "1" ]; then
-  echo "done: plain IPA built, +SideStore variant skipped (no dylibify)" >&2
-  exit 0
-fi
 
 mv ./tmp/SideStoreSupport.framework Payload/LiveContainer.app/Frameworks
 
