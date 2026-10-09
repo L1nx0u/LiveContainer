@@ -22,12 +22,18 @@ portable_sed() {
 }
 
 # --- fetch dylibify (only needed for the +SideStore variant) ---
-# shortcut: skip +SideStore variant if dylibify binary is unreachable. Upgrade to vendored binary when mirror returns.
+# shortcut: third-party mirror (jakeajames) as fallback. Upgrade to vendored binary if mirrors rot again.
 if [ ! -x ./dylibify ]; then
   if ! curl -fSL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify; then
-    echo "warning: dylibify unavailable, shipping plain IPA only" >&2
     rm -f dylibify
-    SKIP_SIDESTORE_VARIANT=1
+    if curl -fSL --retry 3 -o dylibify https://github.com/jakeajames/dylibify/raw/master/dylibify-arm64; then
+      chmod +x dylibify
+      unset SKIP_SIDESTORE_VARIANT
+    else
+      rm -f dylibify
+      echo "warning: dylibify unavailable, shipping plain IPA only" >&2
+      SKIP_SIDESTORE_VARIANT=1
+    fi
   else
     chmod +x dylibify
   fi
