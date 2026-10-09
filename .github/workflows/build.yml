@@ -81,6 +81,7 @@ jobs:
         with:
           name: ${{ env.scheme }}+SideStore.ipa
           path: ${{ env.scheme }}+SideStore.ipa
+          if-no-files-found: warn
 
   release__nightly:
     name: Nightly Release

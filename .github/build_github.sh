@@ -21,10 +21,16 @@ portable_sed() {
   fi
 }
 
-# --- fetch dylibify ---
+# --- fetch dylibify (only needed for the +SideStore variant) ---
+# shortcut: skip +SideStore variant if dylibify binary is unreachable. Upgrade to vendored binary when mirror returns.
 if [ ! -x ./dylibify ]; then
-  curl -fSL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify
-  chmod +x dylibify
+  if ! curl -fSL --retry 3 -o dylibify https://github.com/LiveContainer/dylibify/releases/download/1.0/dylibify; then
+    echo "warning: dylibify unavailable, shipping plain IPA only" >&2
+    rm -f dylibify
+    SKIP_SIDESTORE_VARIANT=1
+  else
+    chmod +x dylibify
+  fi
 fi
 
 if ! command -v ldid >/dev/null 2>&1; then
@@ -44,6 +50,11 @@ mkdir -p tmp
 mv Payload/LiveContainer.app/Frameworks/SideStoreSupport.framework ./tmp
 
 zip -r "$scheme.ipa" "Payload" -x "._*" -x ".DS_Store" -x "__MACOSX"
+
+if [ "${SKIP_SIDESTORE_VARIANT:-}" = "1" ]; then
+  echo "done: plain IPA built, +SideStore variant skipped (no dylibify)" >&2
+  exit 0
+fi
 
 mv ./tmp/SideStoreSupport.framework Payload/LiveContainer.app/Frameworks
 
